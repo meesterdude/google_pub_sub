@@ -1,0 +1,87 @@
+#!/usr/bin/env rails runner
+
+#pubsub = Google::Cloud::Pubsub.new
+command = ARGV[0]
+@queues_params = ARGV[1]
+
+def start
+ 
+  queues.each do |queue|
+    subscription_name = "#{queue}-worker-#{SecureRandom.alphanumeric}"
+    pid = fork do
+      pubsub = Google::Cloud::Pubsub.new
+      morgue = pubsub.get_topic 'morgue'
+      topic = pubsub.topic queue
+      raise(NoQueueExistsError, "the queue '#{queue}' is not configured in google pub/sub") if topic.nil?
+      subscription = topic.subscribe subscription_name
+      subscription.dead_letter_topic = morgue
+      subscription.dead_letter_max_delivery_attempts=5 # 5 is the minimum on google pub/sub
+      subscriber = subscription.listen do |received_message|
+        received_message.acknowledge!
+        puts "message from #{subscription_name}: Received: #{received_message.data}"
+        json = JSON.parse(received_message.data)
+        ActiveSupport::Notifications.instrument "pubsub.execution", this: :data do
+          ActiveJob::Base.execute(json)
+        end
+        
+        
+      end
+      begin
+        subscriber.start
+        loop do
+          sleep 0.1
+        end
+      ensure
+        puts "message from #{subscription_name}: exiting..."
+        subscriber.stop.wait!
+        subscription.delete
+      end
+    
+    end
+    puts "starting #{subscription_name} with PID #{pid}"
+    open("tmp/pids/#{queue}.pids", 'a') {|f| f.puts pid}
+
+  end
+end
+
+def stop
+  queues.each do |queue|
+    pids = File.read("tmp/pids/#{queue}.pids").lines.collect(&:chomp)
+    pids.each do |pid|
+      begin
+        Process.kill(0, pid.to_i)
+        Process.kill("TERM", pid.to_i)
+      rescue Errno::EPERM             
+        puts "No permission to query #{pid}!";
+      rescue Errno::ESRCH
+        puts "#{pid} not running.";
+      rescue
+        puts "Unable to determine status for #{pid} : #{$!}"
+      end
+    end
+    File.open("tmp/pids/#{queue}.pids", 'w') {}
+  end
+end
+
+
+def queues
+  valid_queues = []
+  config_queues = Rails.configuration.google_pub_sub.queues
+  if @queues_params
+      @queues_params.split(",").each do |queues_param|
+        valid_queues << queues_param if queues_param.in?(config_queues)
+      end
+  else
+    valid_queues = config_queues
+  end
+  valid_queues
+end
+
+
+
+case command
+when "start" then start
+when "stop" then stop
+else
+  puts "no start/stop command provided"
+end
