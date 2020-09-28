@@ -1,0 +1,12 @@
+production:
+  project_id: ENV["GOOGLE_PUB_SUB_PROJECT_ID"]
+  keyfile: ENV["GOOGLE_PUB_SUB_KEYFILE"]
+  queues:
+    - default
+    - priority
+development:
+  project_id: ENV["GOOGLE_PUB_SUB_PROJECT_ID"]
+  keyfile: ENV["GOOGLE_PUB_SUB_KEYFILE"]
+  queues:
+    - default
+    - priority

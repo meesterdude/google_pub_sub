@@ -10,7 +10,10 @@ module GooglePubSub
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 6.0
-
+    config.autoloader = :classic
+    config.eager_load_paths << Rails.root.join('lib')
+    config.google_pub_sub = config_for(:google_pub_sub)
+    config.active_job.queue_adapter = :google_pub_sub
     # Settings in config/environments/* take precedence over those specified here.
     # Application configuration can go into files in config/initializers
     # -- all .rb files in that directory are automatically loaded after loading
