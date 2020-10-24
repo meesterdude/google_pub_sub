@@ -1,5 +1,7 @@
 # README
 
+This project is an example of how to use google pub/sub as a backend for ActiveJob.
+
 ## Setup
 
 1. copy the `config/google_pub_sub.yml.sample` file and populate with your project and credentials file, either via enviroment variables or via the file directly. You can also specify which queues/topics to use here. 
